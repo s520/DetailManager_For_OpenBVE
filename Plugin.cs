@@ -1,4 +1,4 @@
-﻿// Copyright 2018 S520
+// Copyright 2018 S520
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -78,7 +78,9 @@ namespace DetailManager {
             }
             int panel_length = 0;
             for (int i = 0; i < properties_list_.Count; i++) {
-                panel_length += properties_list_[i].Panel.Length - panel_length;
+                if (properties_list_[i].Panel != null) {
+                    panel_length += properties_list_[i].Panel.Length - panel_length;
+                }
             }
             properties.Panel = new int[panel_length];
             this.train_ = new Train(properties.Panel);
