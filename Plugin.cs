@@ -26,6 +26,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
+using System.Runtime.InteropServices;
 
 namespace DetailManager {
 
@@ -46,6 +47,7 @@ namespace DetailManager {
         public bool Load(LoadProperties properties) {
             string dll_path = Assembly.GetExecutingAssembly().Location;
             string cfg_path = Path.ChangeExtension(dll_path, ".cfg");
+            List<string> win32Dlls = new List<string>();
             LoadConfig load_config = LoadConfig.GetInstance();
             load_config.LoadCfgFile(cfg_path);
             plugins_ = new List<IRuntime>();
@@ -54,6 +56,13 @@ namespace DetailManager {
                 Assembly plugin;
                 try {
                     plugin = Assembly.LoadFile(load_config.plugin_path_[i]);
+                } catch (BadImageFormatException) {
+                    if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) {
+                        win32Dlls.Add(load_config.plugin_path_[i]);
+                        continue;
+                    } else {
+                        return false;
+                    }
                 } catch {
                     return false;
                 }
@@ -72,6 +81,24 @@ namespace DetailManager {
                         properties_list_.Add(new LoadProperties(properties.PluginFolder, properties.TrainFolder, properties.PlaySound, properties.PlayCarSound, properties.AddMessage, properties.AddScore));
                     }
                 }
+            }
+            if (win32Dlls.Count > 0) {
+                string rockOnPath = Path.Combine(properties.PluginFolder, Win32DetailManagerPInvoke.MODULE_NAME);
+                if (!File.Exists(rockOnPath)) File.WriteAllBytes(rockOnPath, Properties.Resources.RockOnDetailManager);
+                using (FileStream moduleStream = new FileStream(Path.Combine(properties.PluginFolder, "detailmodules.txt"), FileMode.Create, FileAccess.Write))
+                using (StreamWriter writer = new StreamWriter(moduleStream, System.Text.Encoding.ASCII)) {
+                    foreach (string dllPath in win32Dlls) {
+                        string folder = properties.PluginFolder;
+                        Uri pathUri = new Uri(dllPath);
+                        if (!folder.EndsWith(Path.DirectorySeparatorChar.ToString())) folder += Path.DirectorySeparatorChar;
+                        Uri folderUri = new Uri(folder);
+                        Uri relativeUri = folderUri.MakeRelativeUri(pathUri);
+                        string relativePath = Uri.UnescapeDataString(relativeUri.ToString().Replace('/', Path.DirectorySeparatorChar));
+                        writer.WriteLine(relativePath);
+                    }
+                }
+                plugins_.Add(new Win32DetailManagerPlugin());
+                properties_list_.Add(new LoadProperties(properties.PluginFolder, properties.TrainFolder, properties.PlaySound, properties.PlayCarSound, properties.AddMessage, properties.AddScore));
             }
             for (int i = 0; i < plugins_.Count; i++) {
                 if (!plugins_[i].Load(properties_list_[i])) { return false; }
