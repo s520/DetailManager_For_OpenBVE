@@ -27,6 +27,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
 using System.Runtime.InteropServices;
+using System.Text;
 
 namespace DetailManager {
 
@@ -84,18 +85,29 @@ namespace DetailManager {
             }
             if (win32Dlls.Count > 0) {
                 string rockOnPath = Path.Combine(properties.PluginFolder, Win32DetailManagerPInvoke.MODULE_NAME);
-                if (!File.Exists(rockOnPath)) File.WriteAllBytes(rockOnPath, Properties.Resources.RockOnDetailManager);
-                using (FileStream moduleStream = new FileStream(Path.Combine(properties.PluginFolder, "detailmodules.txt"), FileMode.Create, FileAccess.Write))
-                using (StreamWriter writer = new StreamWriter(moduleStream, System.Text.Encoding.ASCII)) {
-                    foreach (string dllPath in win32Dlls) {
-                        string folder = properties.PluginFolder;
-                        Uri pathUri = new Uri(dllPath);
-                        if (!folder.EndsWith(Path.DirectorySeparatorChar.ToString())) folder += Path.DirectorySeparatorChar;
-                        Uri folderUri = new Uri(folder);
-                        Uri relativeUri = folderUri.MakeRelativeUri(pathUri);
-                        string relativePath = Uri.UnescapeDataString(relativeUri.ToString().Replace('/', Path.DirectorySeparatorChar));
-                        writer.WriteLine(relativePath);
+                if (!File.Exists(rockOnPath)) {
+                    File.WriteAllBytes(rockOnPath, Properties.Resources.RockOnDetailManager);
+                }
+                StringBuilder sb = new StringBuilder();
+                string detailModulePath = Path.Combine(properties.PluginFolder, "detailmodules.txt");
+                foreach (string dllPath in win32Dlls) {
+                    string folder = properties.PluginFolder;
+                    Uri pathUri = new Uri(dllPath);
+                    if (!folder.EndsWith(Path.DirectorySeparatorChar.ToString())) {
+                        folder += Path.DirectorySeparatorChar;
                     }
+                    Uri folderUri = new Uri(folder);
+                    Uri relativeUri = folderUri.MakeRelativeUri(pathUri);
+                    string relativePath = Uri.UnescapeDataString(relativeUri.ToString().Replace('/', Path.DirectorySeparatorChar));
+                    sb.AppendLine(relativePath);
+                }
+                if (File.Exists(detailModulePath)) {
+                    string currentContent = File.ReadAllText(detailModulePath, Encoding.UTF8);
+                    if (currentContent.Trim() != sb.ToString().Trim()) {
+                        File.WriteAllText(detailModulePath, sb.ToString(), Encoding.UTF8);
+                    }
+                } else {
+                    File.WriteAllText(detailModulePath, sb.ToString(), Encoding.UTF8);
                 }
                 plugins_.Add(new Win32DetailManagerPlugin());
                 properties_list_.Add(new LoadProperties(properties.PluginFolder, properties.TrainFolder, properties.PlaySound, properties.PlayCarSound, properties.AddMessage, properties.AddScore));
