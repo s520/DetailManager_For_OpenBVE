@@ -1,4 +1,4 @@
-﻿// Copyright 2018 S520
+// Copyright 2018 S520
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -26,6 +26,8 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
+using System.Runtime.InteropServices;
+using System.Text;
 
 namespace DetailManager {
 
@@ -46,6 +48,7 @@ namespace DetailManager {
         public bool Load(LoadProperties properties) {
             string dll_path = Assembly.GetExecutingAssembly().Location;
             string cfg_path = Path.ChangeExtension(dll_path, ".cfg");
+            List<string> win32Dlls = new List<string>();
             LoadConfig load_config = LoadConfig.GetInstance();
             load_config.LoadCfgFile(cfg_path);
             plugins_ = new List<IRuntime>();
@@ -54,6 +57,13 @@ namespace DetailManager {
                 Assembly plugin;
                 try {
                     plugin = Assembly.LoadFile(load_config.plugin_path_[i]);
+                } catch (BadImageFormatException) {
+                    if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) {
+                        win32Dlls.Add(load_config.plugin_path_[i]);
+                        continue;
+                    } else {
+                        return false;
+                    }
                 } catch {
                     return false;
                 }
@@ -73,12 +83,43 @@ namespace DetailManager {
                     }
                 }
             }
+            if (win32Dlls.Count > 0) {
+                string rockOnPath = Path.Combine(properties.PluginFolder, Win32DetailManagerPInvoke.MODULE_NAME);
+                if (!File.Exists(rockOnPath)) {
+                    File.WriteAllBytes(rockOnPath, Properties.Resources.RockOnDetailManager);
+                }
+                StringBuilder sb = new StringBuilder();
+                string detailModulePath = Path.Combine(properties.PluginFolder, "detailmodules.txt");
+                foreach (string dllPath in win32Dlls) {
+                    string folder = properties.PluginFolder;
+                    Uri pathUri = new Uri(dllPath);
+                    if (!folder.EndsWith(Path.DirectorySeparatorChar.ToString())) {
+                        folder += Path.DirectorySeparatorChar;
+                    }
+                    Uri folderUri = new Uri(folder);
+                    Uri relativeUri = folderUri.MakeRelativeUri(pathUri);
+                    string relativePath = Uri.UnescapeDataString(relativeUri.ToString().Replace('/', Path.DirectorySeparatorChar));
+                    sb.AppendLine(relativePath);
+                }
+                if (File.Exists(detailModulePath)) {
+                    string currentContent = File.ReadAllText(detailModulePath, Encoding.UTF8);
+                    if (currentContent.Trim() != sb.ToString().Trim()) {
+                        File.WriteAllText(detailModulePath, sb.ToString(), Encoding.UTF8);
+                    }
+                } else {
+                    File.WriteAllText(detailModulePath, sb.ToString(), Encoding.UTF8);
+                }
+                plugins_.Add(new Win32DetailManagerPlugin());
+                properties_list_.Add(new LoadProperties(properties.PluginFolder, properties.TrainFolder, properties.PlaySound, properties.PlayCarSound, properties.AddMessage, properties.AddScore));
+            }
             for (int i = 0; i < plugins_.Count; i++) {
                 if (!plugins_[i].Load(properties_list_[i])) { return false; }
             }
             int panel_length = 0;
             for (int i = 0; i < properties_list_.Count; i++) {
-                panel_length += properties_list_[i].Panel.Length - panel_length;
+                if (properties_list_[i].Panel != null) {
+                    panel_length += properties_list_[i].Panel.Length - panel_length;
+                }
             }
             properties.Panel = new int[panel_length];
             this.train_ = new Train(properties.Panel);

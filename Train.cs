@@ -1,4 +1,4 @@
-﻿// Copyright 2018 S520
+// Copyright 2018 S520
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -54,9 +54,11 @@ namespace DetailManager {
 
                 // --- パネル ---
                 for (int i = 0; i < properties.Count; i++) {
-                    for (int j = 0; j < properties[i].Panel.Length; j++) {
-                        if (properties[i].Panel[j] != 0) {
-                            this.Panel[j] = properties[i].Panel[j];
+                    if (properties[i].Panel != null) {
+                        for (int j = 0; j < properties[i].Panel.Length; j++) {
+                            if (properties[i].Panel[j] != 0) {
+                                this.Panel[j] = properties[i].Panel[j];
+                            }
                         }
                     }
                 }
